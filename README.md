@@ -1,19 +1,5 @@
-# 📈 Loan Collectability & Recovery Analytics
-
-An interactive Streamlit-based financial toolbox designed to evaluate debt portfolio health, model recovery strategies, and project cash flows using NPV-driven analytics.
-
-## 🔍 Overview
-The **Loan Collectability Toolbox** is designed for financial analysts and recovery teams to transform raw delinquency data into actionable insights. By applying customizable discount rates and recovery probability multipliers, the tool calculates the **Expected Net Present Value (NPV)** of outstanding loans to prioritize high-value collection efforts.
-
-## ✨ Key Features
-*   **Dynamic Data Ingestion:** Toggle between synthetic demo data or upload your own CSV/Excel ledgers.
-*   **Strategy Modeling:** Compare Conservative, Standard, and Aggressive recovery scenarios in real-time.
-*   **Predictive Cash Flow:** View 12-month projections based on estimated recovery months derived from delinquency aging.
-*   **Portfolio Mapping:** A multi-dimensional bubble chart plotting recency scores against expected NPV to identify "quick wins."
-
-## 🚀 Quick Start
-
-### 1. Clone Repository
-```bash
-git clone https://github.com/your-username/loan-collectability-toolbox.git
+Loan Collectability ToolboxThe Loan Collectability Toolbox is an interactive Streamlit application designed for financial analysts and recovery teams to evaluate the health of debt portfolios. By applying customizable discount rates and recovery probability multipliers, the tool calculates the Expected Net Present Value (NPV) of outstanding loans to prioritize high-value collection efforts.Key FeaturesDynamic Data Ingestion: Toggle between synthetic demo data or upload your own CSV/Excel ledgers.Strategy Modeling: Compare Conservative, Standard, and Aggressive recovery scenarios in real-time.Predictive Cash Flow: View 12-month projections based on estimated recovery months derived from delinquency aging.Portfolio Mapping: A multi-dimensional bubble chart plotting recency scores against expected NPV to identify "quick wins."Quick StartFollow these steps to deploy the toolbox on your local machine or Streamlit Community Cloud.1. Clone Repositorybashgit clone https://github.com
 cd loan-collectability-toolbox
+Use code with caution.2. Install DependenciesEnsure you have Python installed, then run:bashpip install streamlit pandas plotly openpyxl xlsxwriter
+Use code with caution.3. Launch ApplicationStart the Streamlit server:bashstreamlit run app.py
+Use code with caution.Core Analytical FrameworkThe application centers on the Net Present Value (NPV) formula, which determines the current worth of future cash inflows by accounting for the time value of money and recovery risks.Recovery StrategiesStrategy TypeProbability Multiplier & ImpactConservative0.6x Multiplier – Prudent estimates for high-risk economic climates.Standard1.0x Multiplier – Baseline recovery expectations based on historical averages.Aggressive1.4x Multiplier – Target-rich environment or highly effective collection team.Technical LogicAging Buckets: Categorizes debt into intervals (0-30, 31-60, etc.) to analyze concentration risk across the portfolio.NPV Logic: Uses a daily discount rate calculated as (Annual Rate / 365) to precisely value every day of delinquency.Goal Tracking: A real-time gauge compares current portfolio NPV against a user-defined recovery target.Data PreparationTo use the Upload Data feature, your file must include the following columns. You can download a pre-formatted Excel template directly from the application sidebar.Column NameDescriptionAccount_IDUnique identifier for the loan.Debt_AmountThe total outstanding principal or balance.Days_DelinquentInteger representing how many days the payment is past due.ContributionsFor further inquiries or contributions regarding the mathematical model or UI enhancements, please open an Issue in the repository.
