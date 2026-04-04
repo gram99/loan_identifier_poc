@@ -65,6 +65,11 @@ def process_data(data, is_synthetic=False):
     bins = [0, 30, 60, 90, 180, 360, 720, float('inf')]
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
+    
+    # NEW: Create string-formatted columns specifically for Hover/Display
+    data['Debt_Disp'] = data['Debt_Amount'].apply(lambda x: f"${x:,.2f}")
+    data['NPV_Disp'] = data['NPV_Value'].apply(lambda x: f"${x:,.2f}")
+    
     return data
 
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
@@ -73,18 +78,32 @@ total_npv = df['NPV_Value'].sum()
 # --- 1. CENTERPIECE: Recovery Map (Bubble Graph) ---
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
-fig_map = px.scatter(
-    df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
-    hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r", 
-    custom_data=["Debt_Amount", "Days_Delinquent"],
-    labels={"x": "Recency Score", "NPV_Value": "Expected NPV ($)"},
-    height=550
-)
 
-# Explicitly format the hover for the scatter points
-fig_map.update_traces(
-    hovertemplate="<b>%{hovertext}</b><br>Expected NPV: $%{y:,.2f}<br>Debt Amount: $%{customdata[0]:,.2f}<br>Days Delinquent: %{customdata[1]}",
-    selector=dict(mode='markers')
+fig_map = px.scatter(
+    df, 
+    x=720-df['Days_Delinquent'], 
+    y="NPV_Value", 
+    size="Debt_Amount", 
+    color="Days_Delinquent",
+    hover_name="Account_ID", 
+    trendline="ols", 
+    template="plotly_white", 
+    color_continuous_scale="RdBu_r", 
+    # Use formatted display columns and hide the raw numeric ones
+    hover_data={
+        "NPV_Value": False,
+        "Debt_Amount": False,
+        "NPV_Disp": True,
+        "Debt_Disp": True,
+        "Days_Delinquent": True
+    },
+    labels={
+        "x": "Recency Score", 
+        "NPV_Disp": "Expected NPV",
+        "Debt_Disp": "Debt Amount",
+        "Days_Delinquent": "Days Delinquent"
+    },
+    height=550
 )
 st.plotly_chart(fig_map, use_container_width=True)
 
@@ -117,24 +136,30 @@ with col_cf:
     base_date = datetime.now()
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
     
+    # Formatted NPV for line chart hover
+    cash_flow['NPV_Disp'] = cash_flow['NPV_Value'].apply(lambda x: f"${x:,.2f}")
+    
     fig_cf = px.line(
         cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', 
         color_discrete_sequence=['#00CC96'],
-        labels={"NPV_Value": "Projected NPV"}
+        hover_data={"NPV_Value": False, "NPV_Disp": True},
+        labels={"NPV_Disp": "Projected NPV"}
     )
-    fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: $%{y:,.2f}")
     st.plotly_chart(fig_cf, use_container_width=True)
 
 with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
     
+    # Formatted Debt for bar chart hover
+    bucket_sum['Debt_Disp'] = bucket_sum['Debt_Amount'].apply(lambda x: f"${x:,.2f}")
+    
     fig_bc = px.bar(
         bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', 
         color_continuous_scale='Reds', template='plotly_white',
-        labels={"Debt_Amount": "Total Debt"}
+        hover_data={"Debt_Amount": False, "Debt_Disp": True},
+        labels={"Debt_Disp": "Total Debt"}
     )
-    fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: $%{y:,.2f}")
     st.plotly_chart(fig_bc, use_container_width=True)
 
 # --- 4. FOOTER: Goal Tracker & Priority Targets ---
@@ -158,7 +183,7 @@ with col_goal:
 
 with col_top:
     st.subheader("🏆 Priority Action Items")
-    st.write("Top 5 collectible accounts to prioritize:")
+    st.write("Top 5 collectible accounts to prioritize for your goal:")
     top_5 = df[['Account_ID', 'Debt_Amount', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False).head(5)
     st.table(top_5.style.format({'Debt_Amount': '${:,.2f}', 'NPV_Value': '${:,.2f}'}))
 
