@@ -10,13 +10,11 @@ st.set_page_config(page_title="Loan Collectability Toolbox", layout="wide", page
 # --- Excel Template Generator with Samples ---
 def create_template_with_samples():
     buffer = io.BytesIO()
-    # Sample data to guide the user
     samples = pd.DataFrame({
         'Account_ID': ['L-12345', 'L-67890', 'L-54321'],
         'Debt_Amount': [5000.00, 12500.50, 750.00],
-        'Days_Delinquent': [30, 180, 450]
+        'Days_Delinquent': [15, 45, 120]
     })
-    # Create the Excel file in memory
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         samples.to_excel(writer, index=False, sheet_name='Template')
     return buffer.getvalue()
@@ -27,10 +25,8 @@ st.title("📊 Loan Collectability & Recovery Analytics")
 st.sidebar.header("📂 Data Source")
 data_source = st.sidebar.radio("Select Data Source:", ["Synthetic Demo", "Upload Data"])
 
-# Sidebar Download Template Section
 st.sidebar.divider()
 st.sidebar.subheader("📥 Need a Template?")
-st.sidebar.info("Download this Excel template with sample rows to ensure your data matches our format.")
 template_bytes = create_template_with_samples()
 st.sidebar.download_button(
     label="Download Excel Template",
@@ -39,7 +35,6 @@ st.sidebar.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
-# Initialize variables
 df = pd.DataFrame()
 
 if data_source == "Upload Data":
@@ -50,7 +45,6 @@ if data_source == "Upload Data":
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
-            st.sidebar.success("✅ File loaded successfully!")
         except Exception as e:
             st.sidebar.error(f"Error loading file: {e}")
             st.stop()
@@ -58,10 +52,8 @@ if data_source == "Upload Data":
         st.info("👋 Please upload a file in the sidebar to begin or switch to 'Synthetic Demo'.")
         st.stop()
 else:
-    # Synthetic Parameters
     num_accounts = st.sidebar.slider("Number of Loan Accounts", 50, 1000, 200)
 
-# Shared Financial Parameters
 st.sidebar.divider()
 annual_discount_rate = st.sidebar.slider("Annual Discount Rate (%)", 1.0, 20.0, 8.0) / 100
 scenario = st.sidebar.radio("Recovery Strategy Mode:", ["Standard", "Aggressive", "Conservative"])
@@ -78,20 +70,23 @@ def process_data(data, is_synthetic=False):
             'Days_Delinquent': np.random.randint(1, 720, n)
         })
     
-    # Required columns check
     required = ['Debt_Amount', 'Days_Delinquent']
     if not all(col in data.columns for col in required):
         st.error(f"Data must contain these exact column names: {required}")
         st.stop()
 
-    # Calculation Logic
     daily_rate = annual_discount_rate / 365
     data['Recovery_Prob'] = np.clip((1 - (data['Days_Delinquent'] / 720)) * multiplier, 0, 1)
     data['NPV_Value'] = (data['Debt_Amount'] * data['Recovery_Prob']) / ((1 + daily_rate) ** data['Days_Delinquent'])
     data['Recency_Score'] = 720 - data['Days_Delinquent']
+    
+    # Aging Bucket Logic
+    bins = [0, 30, 60, 90, 180, 360, float('inf')]
+    labels = ['0-30 Days', '31-60 Days', '61-90 Days', '91-180 Days', '181-360 Days', '360+ Days']
+    data['Aging_Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
+    
     return data
 
-# Process the data
 df = process_data(df, is_synthetic=(data_source == "Synthetic Demo"))
 
 # --- Dashboard Layout ---
@@ -101,22 +96,48 @@ c1.metric("Total Book Value", f"${total_book:,.2f}")
 c2.metric("Portfolio NPV", f"${total_npv:,.2f}", delta=scenario)
 c3.metric("Avg. Recovery Chance", f"{df['Recovery_Prob'].mean():.1%}")
 
-# Visual Chart
+# Visual Chart (Scatter)
 st.divider()
-fig = px.scatter(df, x="Recency_Score", y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
+st.subheader("🔍 Portfolio Recovery Map")
+fig_scatter = px.scatter(df, x="Recency_Score", y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
                  hover_name="Account_ID" if 'Account_ID' in df.columns else None,
                  trendline="ols", template="plotly_white", height=500,
                  color_continuous_scale="RdBu_r", labels={"Recency_Score": "Age Score (720=Newest)"})
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig_scatter, use_container_width=True)
+
+# --- NEW: Aging Bucket Summary Section ---
+st.divider()
+st.subheader("📁 Aging Bucket Summary")
+bucket_summary = df.groupby('Aging_Bucket', observed=True).agg({
+    'Debt_Amount': 'sum',
+    'NPV_Value': 'sum',
+    'Account_ID': 'count'
+}).reset_index()
+bucket_summary.columns = ['Aging Bucket', 'Total Debt ($)', 'Expected NPV ($)', 'Account Count']
+
+col_chart, col_table_b = st.columns([2, 1])
+
+with col_chart:
+    fig_bar = px.bar(bucket_summary, x='Aging Bucket', y='Total Debt ($)', 
+                     text_auto='.2s', title="Total Debt Volume by Bucket",
+                     color='Total Debt ($)', color_continuous_scale="Reds")
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+with col_table_b:
+    st.dataframe(bucket_summary, use_container_width=True, hide_index=True,
+                 column_config={
+                     "Total Debt ($)": st.column_config.NumberColumn(format="$%,.0f"),
+                     "Expected NPV ($)": st.column_config.NumberColumn(format="$%,.0f")
+                 })
 
 # Recovery Ledger Table
 st.divider()
-col_table, col_download = st.columns(2)
-with col_table:
-    st.subheader("📋 Account Recovery Ledger")
-with col_download:
+col_head, col_dl = st.columns([2, 1])
+with col_head:
+    st.subheader("📋 Detailed Account Ledger")
+with col_dl:
     csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Export Current Analysis to CSV", data=csv, file_name='recovery_analysis.csv', mime='text/csv')
+    st.download_button("📥 Export Analysis to CSV", data=csv, file_name='recovery_analysis.csv', mime='text/csv')
 
 st.dataframe(
     df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False),
