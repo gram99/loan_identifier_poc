@@ -10,17 +10,3 @@ The **Loan Collectability Toolbox** is an interactive Streamlit application desi
 
 ---
 
-## Quick Start
-Follow these steps to deploy the toolbox on your local machine or Streamlit Community Cloud.
-
-### 1. Clone Repository
-```bash
-git clone https://github.com
-cd loan-collectability-toolbox
-
-
-
-
-Ensure you have Python installed, then run:
-'''bash
-pip install streamlit pandas plotly openpyxl xlsxwriter
