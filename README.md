@@ -44,3 +44,11 @@ cd loan-collectability-toolbox
 
 # Install dependencies
 pip install -r requirements.txt
+
+streamlit
+pandas
+numpy
+plotly
+xlsxwriter
+
+
