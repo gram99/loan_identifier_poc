@@ -117,20 +117,35 @@ with col_right:
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
     st.plotly_chart(px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white'), use_container_width=True)
 
-# --- 4. THE FOOTER: Goal Tracker ---
+# --- 4. THE FOOTER: Goals & Key Drivers ---
 st.divider()
-st.subheader("🎯 Recovery Goal Progress")
-fig_gauge = go.Figure(go.Indicator(
-    mode = "gauge+number+delta",
-    value = total_npv,
-    title = {'text': f"Target: ${recovery_target:,.0f}", 'font': {'size': 18}},
-    delta = {'reference': recovery_target, 'increasing': {'color': "green"}},
-    gauge = {
-        'axis': {'range': [None, max(recovery_target * 1.1, total_npv * 1.1)], 'tickformat': "$,.0f"},
-        'bar': {'color': "#00CC96"},
-        'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': recovery_target}
-    }
-))
+col_goal, col_top = st.columns([1, 1])
+
+with col_goal:
+    st.subheader("🎯 Recovery Goal Progress")
+    # Reduced size gauge to fit side-by-side
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = total_npv,
+        delta = {'reference': recovery_target, 'position': "top"},
+        gauge = {
+            'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.0f"},
+            'bar': {'color': "#00CC96"},
+            'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
+        }
+    ))
+    fig_gauge.update_layout(height=280, margin=dict(t=30, b=0, l=30, r=30))
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+with col_top:
+    st.subheader("🏆 Top Collectible Accounts")
+    st.write("Prioritize these accounts to hit your recovery target:")
+    # Show top 5 accounts by NPV Value
+    top_5 = df[['Account_ID', 'Debt_Amount', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False).head(5)
+    st.table(top_5.style.format({
+        'Debt_Amount': '${:,.2f}',
+        'NPV_Value': '${:,.2f}'
+    }))
 fig_gauge.update_layout(height=300, margin=dict(t=0, b=0))
 st.plotly_chart(fig_gauge, use_container_width=True)
 
