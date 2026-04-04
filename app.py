@@ -70,10 +70,9 @@ def process_data(data, is_synthetic=False):
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
 total_npv = df['NPV_Value'].sum()
 
-# --- 1. THE FOCUS: Recovery Map (Bubble Graph) ---
+# --- 1. CENTERPIECE: Recovery Map (Bubble Graph) ---
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
-st.info("💡 **Bubble size** represents Debt Amount. **Positioning** shows expected recovery value over time.")
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r", 
@@ -82,13 +81,13 @@ fig_map = px.scatter(
 )
 st.plotly_chart(fig_map, use_container_width=True)
 
-# --- 2. Account Data Ledger ---
+# --- 2. Account Ledger ---
 st.divider()
-col_head, col_dl = st.columns([2,1])
+col_head, col_dl = st.columns(2)
 with col_head:
     st.subheader("📋 Detailed Account Ledger")
 with col_dl:
-    st.download_button("📥 Export Analysis to CSV", df.to_csv(index=False).encode('utf-8'), "recovery_analysis.csv", "text/csv")
+    st.download_button("📥 Export to CSV", df.to_csv(index=False).encode('utf-8'), "recovery_analysis.csv", "text/csv")
 
 st.dataframe(
     df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False),
@@ -101,29 +100,28 @@ st.dataframe(
     use_container_width=True, hide_index=True
 )
 
-# --- 3. Cash Flow & Bucket Concentration ---
+# --- 3. Analytics: Cash Flow & Buckets ---
 st.divider()
-col_left, col_right = st.columns(2)
+col_cf, col_bc = st.columns(2)
 
-with col_left:
+with col_cf:
     st.subheader("🗓️ 12-Month Projected Cash Flow")
     cash_flow = df.groupby('Est_Recovery_Month')['NPV_Value'].sum().reset_index()
     base_date = datetime.now()
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
     st.plotly_chart(px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', color_discrete_sequence=['#00CC96']), use_container_width=True)
 
-with col_right:
+with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
     st.plotly_chart(px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white'), use_container_width=True)
 
-# --- 4. THE FOOTER: Goals & Key Drivers ---
+# --- 4. FOOTER: Goal Tracker & Priority Targets ---
 st.divider()
-col_goal, col_top = st.columns([1, 1])
+col_goal, col_top = st.columns(2)
 
 with col_goal:
     st.subheader("🎯 Recovery Goal Progress")
-    # Reduced size gauge to fit side-by-side
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number+delta",
         value = total_npv,
@@ -134,21 +132,15 @@ with col_goal:
             'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
         }
     ))
-    fig_gauge.update_layout(height=280, margin=dict(t=30, b=0, l=30, r=30))
+    fig_gauge.update_layout(height=300, margin=dict(t=30, b=0, l=30, r=30))
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 with col_top:
-    st.subheader("🏆 Top Collectible Accounts")
-    st.write("Prioritize these accounts to hit your recovery target:")
-    # Show top 5 accounts by NPV Value
+    st.subheader("🏆 Priority Action Items")
+    st.write("Top 5 collectible accounts to prioritize for your goal:")
     top_5 = df[['Account_ID', 'Debt_Amount', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False).head(5)
-    st.table(top_5.style.format({
-        'Debt_Amount': '${:,.2f}',
-        'NPV_Value': '${:,.2f}'
-    }))
-fig_gauge.update_layout(height=300, margin=dict(t=0, b=0))
-st.plotly_chart(fig_gauge, use_container_width=True)
+    st.table(top_5.style.format({'Debt_Amount': '${:,.2f}', 'NPV_Value': '${:,.2f}'}))
 
-# Template Download at very bottom
+# Sidebar Template Download
 st.sidebar.divider()
 st.sidebar.download_button("📥 Download Excel Template", create_template_with_samples(), "loan_template.xlsx")
