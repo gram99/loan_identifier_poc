@@ -31,14 +31,12 @@ multiplier = scenario_map[scenario]
 def generate_portfolio(n, mult, disc_rate):
     np.random.seed(42)
     debt = np.random.uniform(500, 15000, n)
-    # Generate Days Delinquent (up to 720 days / 24 months)
     days_delinquent = np.random.randint(1, 720, n)
     
-    # Probability Logic: Baseline drops to 0 at 720 days
+    # Probability Logic
     prob = np.clip((1 - (days_delinquent / 720)) * mult, 0, 1)
     
-    # Financial Logic: Net Present Value (NPV)
-    # Using Daily Discounting for accuracy with 'Days'
+    # NPV Logic
     daily_rate = disc_rate / 365
     expected_recovery = debt * prob
     npv = expected_recovery / ((1 + daily_rate) ** days_delinquent)
@@ -68,7 +66,7 @@ c3.metric("Avg. Recovery Chance", f"{avg_prob:.1%}")
 # --- Interactive Visualization ---
 st.divider()
 st.subheader(f"Portfolio Recovery Map: {scenario} Analytics")
-st.info("💡 **Hover over bubbles** to see specific Account IDs and Dollar Amounts. The **trendline** shows the value decay over time.")
+st.info("💡 **Hover over bubbles** to see details. The **trendline** shows value decay over time.")
 
 fig = px.scatter(
     df, 
@@ -90,12 +88,12 @@ fig = px.scatter(
     template="plotly_white",
     height=600
 )
-
 st.plotly_chart(fig, use_container_width=True)
 
 # --- Data Export & Refined Table ---
 st.divider()
-col_table, col_download = st.columns()
+# FIX: Added '2' to st.columns to prevent the TypeError
+col_table, col_download = st.columns(2)
 
 with col_table:
     st.subheader("📋 Account Recovery Ledger")
@@ -109,31 +107,17 @@ with col_download:
         mime='text/csv',
     )
 
-# Select and format columns for display
+# Formatting the DataFrame for display
 display_df = df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value']].copy()
 
 st.dataframe(
     display_df.sort_values(by='NPV_Value', ascending=False),
     column_config={
         "Account_ID": "Account ID",
-        "Debt_Amount": st.column_config.NumberColumn(
-            "Debt Amount", 
-            format="$%,.2f"  # Comma for thousands, 2 decimals
-        ),
-        "NPV_Value": st.column_config.NumberColumn(
-            "Expected NPV", 
-            format="$%,.2f"  # Comma for thousands, 2 decimals
-        ),
-        "Recovery_Prob": st.column_config.ProgressColumn(
-            "Recovery Prob", 
-            format="%.0f%%", # Displays 0-100% based on decimal value
-            min_value=0, 
-            max_value=1
-        ),
-        "Days_Delinquent": st.column_config.NumberColumn(
-            "Days Delinquent", 
-            format="%d"
-        )
+        "Debt_Amount": st.column_config.NumberColumn("Debt Amount", format="$%,.2f"),
+        "NPV_Value": st.column_config.NumberColumn("Expected NPV", format="$%,.2f"),
+        "Recovery_Prob": st.column_config.ProgressColumn("Recovery Prob", format="%.0f%%", min_value=0, max_value=1),
+        "Days_Delinquent": st.column_config.NumberColumn("Days Delinquent", format="%d")
     },
     use_container_width=True,
     hide_index=True
