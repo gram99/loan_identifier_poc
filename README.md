@@ -1,7 +1,6 @@
 # 📈 Loan Collectability & Recovery Analytics Toolbox
 
-A Streamlit-based interactive analytics tool for modeling **loan collectability**, **expected recovery value**, and **portfolio‑level cash‑flow projections**.  
-This app allows analysts to upload real data or generate synthetic demo portfolios, visualize recovery potential, and export results for further analysis.
+A Streamlit-based interactive analytics tool for modeling **loan collectability**, **expected recovery value**, and **portfolio‑level cash‑flow projections**. This app allows analysts to upload real data or generate synthetic demo portfolios, visualize recovery potential, and export results for further analysis.
 
 ---
 
