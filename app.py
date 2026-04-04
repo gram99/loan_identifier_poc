@@ -117,10 +117,24 @@ display_df = df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob'
 st.dataframe(
     display_df.sort_values(by='NPV_Value', ascending=False),
     column_config={
-        "Debt_Amount": st.column_config.NumberColumn("Debt Amount", format="$%.2f"),
-        "NPV_Value": st.column_config.NumberColumn("NPV Value", format="$%.2f"),
-        "Recovery_Prob": st.column_config.ProgressColumn("Recovery Prob", format="%.1f%%", min_value=0, max_value=1),
-        "Days_Delinquent": st.column_config.NumberColumn("Days Delinquent", format="%d")
+        "Debt_Amount": st.column_config.NumberColumn(
+            "Debt Amount", 
+            format="$%,.2f"  # The comma here adds the thousands separator
+        ),
+        "NPV_Value": st.column_config.NumberColumn(
+            "NPV Value", 
+            format="$%,.2f"  # The comma here adds the thousands separator
+        ),
+        "Recovery_Prob": st.column_config.ProgressColumn(
+            "Recovery Prob", 
+            format="%.1% ", # Displays as percentage
+            min_value=0, 
+            max_value=1
+        ),
+        "Days_Delinquent": st.column_config.NumberColumn(
+            "Days Delinquent", 
+            format="%d"
+        )
     },
     use_container_width=True,
     hide_index=True
