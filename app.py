@@ -49,7 +49,7 @@ def generate_portfolio(n, mult, disc_rate):
         'Days_Delinquent': days_delinquent,
         'Recovery_Prob': prob,
         'NPV_Value': npv,
-        'Recency_Score': 720 - days_delinquent # 720 is new, 0 is old
+        'Recency_Score': 720 - days_delinquent 
     })
 
 df = generate_portfolio(num_accounts, multiplier, annual_discount_rate)
@@ -95,7 +95,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 # --- Data Export & Refined Table ---
 st.divider()
-col_table, col_download = st.columns([3, 1])
+col_table, col_download = st.columns()
 
 with col_table:
     st.subheader("📋 Account Recovery Ledger")
@@ -109,25 +109,24 @@ with col_download:
         mime='text/csv',
     )
 
-# Formatting the DataFrame for display
-# 1. Limit decimals to 2 points for dollars
-# 2. Display Days Delinquent as requested
+# Select and format columns for display
 display_df = df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value']].copy()
 
 st.dataframe(
     display_df.sort_values(by='NPV_Value', ascending=False),
     column_config={
+        "Account_ID": "Account ID",
         "Debt_Amount": st.column_config.NumberColumn(
             "Debt Amount", 
-            format="$%,.2f"  # The comma here adds the thousands separator
+            format="$%,.2f"  # Comma for thousands, 2 decimals
         ),
         "NPV_Value": st.column_config.NumberColumn(
-            "NPV Value", 
-            format="$%,.2f"  # The comma here adds the thousands separator
+            "Expected NPV", 
+            format="$%,.2f"  # Comma for thousands, 2 decimals
         ),
         "Recovery_Prob": st.column_config.ProgressColumn(
             "Recovery Prob", 
-            format="%.1% ", # Displays as percentage
+            format="%.0f%%", # Displays 0-100% based on decimal value
             min_value=0, 
             max_value=1
         ),
