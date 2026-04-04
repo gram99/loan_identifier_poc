@@ -65,11 +65,6 @@ def process_data(data, is_synthetic=False):
     bins = [0, 30, 60, 90, 180, 360, 720, float('inf')]
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
-    
-    # NEW: Create string-formatted columns specifically for Hover/Display
-    data['Debt_Disp'] = data['Debt_Amount'].apply(lambda x: f"${x:,.2f}")
-    data['NPV_Disp'] = data['NPV_Value'].apply(lambda x: f"${x:,.2f}")
-    
     return data
 
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
@@ -79,31 +74,24 @@ total_npv = df['NPV_Value'].sum()
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
 
+# 1. We use custom_data to pass the raw numeric values into the chart metadata
 fig_map = px.scatter(
-    df, 
-    x=720-df['Days_Delinquent'], 
-    y="NPV_Value", 
-    size="Debt_Amount", 
-    color="Days_Delinquent",
-    hover_name="Account_ID", 
-    trendline="ols", 
-    template="plotly_white", 
-    color_continuous_scale="RdBu_r", 
-    # Use formatted display columns and hide the raw numeric ones
-    hover_data={
-        "NPV_Value": False,
-        "Debt_Amount": False,
-        "NPV_Disp": True,
-        "Debt_Disp": True,
-        "Days_Delinquent": True
-    },
-    labels={
-        "x": "Recency Score", 
-        "NPV_Disp": "Expected NPV",
-        "Debt_Disp": "Debt Amount",
-        "Days_Delinquent": "Days Delinquent"
-    },
+    df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
+    hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r",
+    custom_data=["Debt_Amount", "Days_Delinquent"],
+    labels={"x": "Recency Score (Newest on Right)", "NPV_Value": "Expected NPV ($)"},
     height=550
+)
+
+# 2. We define a hardcoded hover template to force $ and ,.2f formatting
+# <extra></extra> removes the trace name from the secondary hover box
+fig_map.update_traces(
+    hovertemplate="<b>%{hovertext}</b><br>" +
+                  "Recency Score: %{x}<br>" +
+                  "Expected NPV: $%{y:,.2f}<br>" +
+                  "Debt Amount: $%{customdata[0]:,.2f}<br>" +
+                  "Days Delinquent: %{customdata[1]}<extra></extra>",
+    selector=dict(mode='markers') # Ensures formatting applies to bubbles, not the trendline
 )
 st.plotly_chart(fig_map, use_container_width=True)
 
@@ -136,30 +124,17 @@ with col_cf:
     base_date = datetime.now()
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
     
-    # Formatted NPV for line chart hover
-    cash_flow['NPV_Disp'] = cash_flow['NPV_Value'].apply(lambda x: f"${x:,.2f}")
-    
-    fig_cf = px.line(
-        cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', 
-        color_discrete_sequence=['#00CC96'],
-        hover_data={"NPV_Value": False, "NPV_Disp": True},
-        labels={"NPV_Disp": "Projected NPV"}
-    )
+    fig_cf = px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', color_discrete_sequence=['#00CC96'])
+    # Format line chart hover
+    fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: $%{y:,.2f}<extra></extra>")
     st.plotly_chart(fig_cf, use_container_width=True)
 
 with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
-    
-    # Formatted Debt for bar chart hover
-    bucket_sum['Debt_Disp'] = bucket_sum['Debt_Amount'].apply(lambda x: f"${x:,.2f}")
-    
-    fig_bc = px.bar(
-        bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', 
-        color_continuous_scale='Reds', template='plotly_white',
-        hover_data={"Debt_Amount": False, "Debt_Disp": True},
-        labels={"Debt_Disp": "Total Debt"}
-    )
+    fig_bc = px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white')
+    # Format bar chart hover
+    fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: $%{y:,.2f}<extra></extra>")
     st.plotly_chart(fig_bc, use_container_width=True)
 
 # --- 4. FOOTER: Goal Tracker & Priority Targets ---
@@ -173,7 +148,7 @@ with col_goal:
         value = total_npv,
         delta = {'reference': recovery_target, 'position': "top"},
         gauge = {
-            'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.0f"},
+            'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.2f"},
             'bar': {'color': "#00CC96"},
             'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
         }
