@@ -76,7 +76,16 @@ st.subheader("🔍 Portfolio Recovery Map")
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r", 
-    labels={"x": "Recency Score (Newest on Right)", "NPV_Value": "Expected NPV ($)"},
+    labels={
+        "x": "Recency Score (Newest on Right)", 
+        "NPV_Value": "Expected NPV ($)",
+        "Debt_Amount": "Debt Amount ($)"
+    },
+    hover_data={
+        "Debt_Amount": ":,.2f", 
+        "NPV_Value": ":,.2f",
+        "Days_Delinquent": True
+    },
     height=550
 )
 st.plotly_chart(fig_map, use_container_width=True)
@@ -109,12 +118,28 @@ with col_cf:
     cash_flow = df.groupby('Est_Recovery_Month')['NPV_Value'].sum().reset_index()
     base_date = datetime.now()
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
-    st.plotly_chart(px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', color_discrete_sequence=['#00CC96']), use_container_width=True)
+    
+    # Formatted Line Chart
+    fig_cf = px.line(
+        cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', 
+        color_discrete_sequence=['#00CC96'],
+        labels={"NPV_Value": "Projected NPV ($)"},
+        hover_data={"NPV_Value": ":,.2f"}
+    )
+    st.plotly_chart(fig_cf, use_container_width=True)
 
 with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
-    st.plotly_chart(px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white'), use_container_width=True)
+    
+    # Formatted Bar Chart
+    fig_bc = px.bar(
+        bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', 
+        color_continuous_scale='Reds', template='plotly_white',
+        labels={"Debt_Amount": "Total Debt ($)"},
+        hover_data={"Debt_Amount": ":,.2f"}
+    )
+    st.plotly_chart(fig_bc, use_container_width=True)
 
 # --- 4. FOOTER: Goal Tracker & Priority Targets ---
 st.divider()
