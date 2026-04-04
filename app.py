@@ -7,118 +7,85 @@ import plotly.express as px
 st.set_page_config(page_title="Loan Collectability Toolbox", layout="wide", page_icon="📈")
 
 st.title("📊 Loan Collectability & Recovery Analytics")
-st.markdown("### Strategic Financial Modeling for Debt Portfolios")
 
-# --- Sidebar: Portfolio & Scenario Controls ---
-st.sidebar.header("📁 Portfolio Parameters")
-num_accounts = st.sidebar.slider("Number of Loan Accounts", 50, 1000, 200)
+# --- Sidebar: Data Source & Parameters ---
+st.sidebar.header("📂 Data Source")
+data_source = st.sidebar.radio("Select Data Source:", ["Synthetic Demo", "Upload CSV"])
+
+# Initialize variables
+df = pd.DataFrame()
+
+if data_source == "Upload CSV":
+    uploaded_file = st.sidebar.file_uploader("Upload your loan CSV", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+            st.sidebar.success("✅ File uploaded successfully!")
+        except Exception as e:
+            st.sidebar.error(f"Error loading file: {e}")
+    else:
+        st.info("👋 Please upload a CSV file in the sidebar to begin.")
+        st.stop()
+else:
+    # Synthetic Parameters
+    num_accounts = st.sidebar.slider("Number of Loan Accounts", 50, 1000, 200)
+    st.sidebar.divider()
+
+# Shared Parameters
 annual_discount_rate = st.sidebar.slider("Annual Discount Rate (%)", 1.0, 20.0, 8.0) / 100
-
-st.sidebar.divider()
-st.sidebar.header("🎯 Recovery Strategy")
-scenario = st.sidebar.radio(
-    "Select Strategy Mode:", 
-    ["Standard", "Aggressive", "Conservative"],
-    help="Adjusts the probability of successful collection based on effort level."
-)
-
-# Strategy Multipliers
-scenario_map = {"Conservative": 0.6, "Standard": 1.0, "Aggressive": 1.4}
-multiplier = scenario_map[scenario]
+scenario = st.sidebar.radio("Recovery Strategy Mode:", ["Standard", "Aggressive", "Conservative"])
+multiplier = {"Conservative": 0.6, "Standard": 1.0, "Aggressive": 1.4}[scenario]
 
 # --- Data Engine ---
-@st.cache_data
-def generate_portfolio(n, mult, disc_rate):
-    np.random.seed(42)
-    debt = np.random.uniform(500, 15000, n)
-    days_delinquent = np.random.randint(1, 720, n)
+def process_data(data, is_synthetic=False):
+    if is_synthetic:
+        np.random.seed(42)
+        n = num_accounts
+        data = pd.DataFrame({
+            'Account_ID': [f"L-{np.random.randint(10000, 99999)}" for _ in range(n)],
+            'Debt_Amount': np.random.uniform(500, 15000, n),
+            'Days_Delinquent': np.random.randint(1, 720, n)
+        })
     
-    # Probability Logic
-    prob = np.clip((1 - (days_delinquent / 720)) * mult, 0, 1)
-    
-    # NPV Logic
-    daily_rate = disc_rate / 365
-    expected_recovery = debt * prob
-    npv = expected_recovery / ((1 + daily_rate) ** days_delinquent)
-    
-    return pd.DataFrame({
-        'Account_ID': [f"L-{np.random.randint(10000, 99999)}" for _ in range(n)],
-        'Debt_Amount': debt,
-        'Days_Delinquent': days_delinquent,
-        'Recovery_Prob': prob,
-        'NPV_Value': npv,
-        'Recency_Score': 720 - days_delinquent 
-    })
+    # Validation: Ensure required columns exist
+    required = ['Debt_Amount', 'Days_Delinquent']
+    if not all(col in data.columns for col in required):
+        st.error(f"CSV must contain these columns: {required}")
+        st.stop()
 
-df = generate_portfolio(num_accounts, multiplier, annual_discount_rate)
+    # Financial Logic
+    daily_rate = annual_discount_rate / 365
+    data['Recovery_Prob'] = np.clip((1 - (data['Days_Delinquent'] / 720)) * multiplier, 0, 1)
+    data['NPV_Value'] = (data['Debt_Amount'] * data['Recovery_Prob']) / ((1 + daily_rate) ** data['Days_Delinquent'])
+    data['Recency_Score'] = 720 - data['Days_Delinquent']
+    return data
 
-# --- Top-Level Metrics ---
-total_book = df['Debt_Amount'].sum()
-total_npv = df['NPV_Value'].sum()
-avg_prob = df['Recovery_Prob'].mean()
+# Process the selected data
+df = process_data(df, is_synthetic=(data_source == "Synthetic Demo"))
 
+# --- Dashboard Layout (Visuals & Table) ---
+total_book, total_npv = df['Debt_Amount'].sum(), df['NPV_Value'].sum()
 c1, c2, c3 = st.columns(3)
 c1.metric("Total Book Value", f"${total_book:,.2f}")
-c2.metric("Portfolio NPV (Expected)", f"${total_npv:,.2f}", 
-          delta=f"{scenario} Strategy", delta_color="normal")
-c3.metric("Avg. Recovery Chance", f"{avg_prob:.1%}")
+c2.metric("Portfolio NPV", f"${total_npv:,.2f}", delta=scenario)
+c3.metric("Avg. Recovery Chance", f"{df['Recovery_Prob'].mean():.1%}")
 
-# --- Interactive Visualization ---
-st.divider()
-st.subheader(f"Portfolio Recovery Map: {scenario} Analytics")
-st.info("💡 **Hover over bubbles** to see details. The **trendline** shows value decay over time.")
-
-fig = px.scatter(
-    df, 
-    x="Recency_Score", 
-    y="NPV_Value",
-    size="Debt_Amount", 
-    color="Days_Delinquent",
-    hover_name="Account_ID",
-    trendline="ols",
-    hover_data={
-        'Recency_Score': False,
-        'Debt_Amount': ':$,.2f',
-        'NPV_Value': ':$,.2f',
-        'Recovery_Prob': ':.1%',
-        'Days_Delinquent': True
-    },
-    color_continuous_scale="RdBu_r",
-    labels={"Recency_Score": "Age (720=New, 0=Old)", "NPV_Value": "Expected NPV ($)"},
-    template="plotly_white",
-    height=600
-)
+# Chart
+fig = px.scatter(df, x="Recency_Score", y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
+                 hover_name="Account_ID" if 'Account_ID' in df.columns else None,
+                 trendline="ols", template="plotly_white", height=500,
+                 color_continuous_scale="RdBu_r", labels={"Recency_Score": "Age (720=New)"})
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Data Export & Refined Table ---
-st.divider()
-# FIX: Added '2' to st.columns to prevent the TypeError
-col_table, col_download = st.columns(2)
-
-with col_table:
-    st.subheader("📋 Account Recovery Ledger")
-
-with col_download:
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Recovery Report",
-        data=csv,
-        file_name='loan_recovery_report.csv',
-        mime='text/csv',
-    )
-
-# Formatting the DataFrame for display
-display_df = df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value']].copy()
-
+# Table
+st.subheader("📋 Recovery Ledger")
 st.dataframe(
-    display_df.sort_values(by='NPV_Value', ascending=False),
+    df.sort_values(by='NPV_Value', ascending=False),
     column_config={
-        "Account_ID": "Account ID",
         "Debt_Amount": st.column_config.NumberColumn("Debt Amount", format="$%,.2f"),
         "NPV_Value": st.column_config.NumberColumn("Expected NPV", format="$%,.2f"),
         "Recovery_Prob": st.column_config.ProgressColumn("Recovery Prob", format="%.0f%%", min_value=0, max_value=1),
         "Days_Delinquent": st.column_config.NumberColumn("Days Delinquent", format="%d")
     },
-    use_container_width=True,
-    hide_index=True
+    use_container_width=True, hide_index=True
 )
