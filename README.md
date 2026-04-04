@@ -18,7 +18,9 @@ Follow these steps to deploy the toolbox on your local machine or Streamlit Comm
 git clone https://github.com
 cd loan-collectability-toolbox
 
-### 2. Install Dependencies
+
+
+
 Ensure you have Python installed, then run:
 '''bash
 pip install streamlit pandas plotly openpyxl xlsxwriter
