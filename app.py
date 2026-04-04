@@ -76,17 +76,15 @@ st.subheader("🔍 Portfolio Recovery Map")
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r", 
-    labels={
-        "x": "Recency Score (Newest on Right)", 
-        "NPV_Value": "Expected NPV ($)",
-        "Debt_Amount": "Debt Amount ($)"
-    },
-    hover_data={
-        "Debt_Amount": ":,.2f", 
-        "NPV_Value": ":,.2f",
-        "Days_Delinquent": True
-    },
+    custom_data=["Debt_Amount", "Days_Delinquent"],
+    labels={"x": "Recency Score", "NPV_Value": "Expected NPV ($)"},
     height=550
+)
+
+# Explicitly format the hover for the scatter points
+fig_map.update_traces(
+    hovertemplate="<b>%{hovertext}</b><br>Expected NPV: $%{y:,.2f}<br>Debt Amount: $%{customdata[0]:,.2f}<br>Days Delinquent: %{customdata[1]}",
+    selector=dict(mode='markers')
 )
 st.plotly_chart(fig_map, use_container_width=True)
 
@@ -119,26 +117,24 @@ with col_cf:
     base_date = datetime.now()
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
     
-    # Formatted Line Chart
     fig_cf = px.line(
         cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', 
         color_discrete_sequence=['#00CC96'],
-        labels={"NPV_Value": "Projected NPV ($)"},
-        hover_data={"NPV_Value": ":,.2f"}
+        labels={"NPV_Value": "Projected NPV"}
     )
+    fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: $%{y:,.2f}")
     st.plotly_chart(fig_cf, use_container_width=True)
 
 with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
     
-    # Formatted Bar Chart
     fig_bc = px.bar(
         bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', 
         color_continuous_scale='Reds', template='plotly_white',
-        labels={"Debt_Amount": "Total Debt ($)"},
-        hover_data={"Debt_Amount": ":,.2f"}
+        labels={"Debt_Amount": "Total Debt"}
     )
+    fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: $%{y:,.2f}")
     st.plotly_chart(fig_bc, use_container_width=True)
 
 # --- 4. FOOTER: Goal Tracker & Priority Targets ---
@@ -162,7 +158,7 @@ with col_goal:
 
 with col_top:
     st.subheader("🏆 Priority Action Items")
-    st.write("Top 5 collectible accounts to prioritize for your goal:")
+    st.write("Top 5 collectible accounts to prioritize:")
     top_5 = df[['Account_ID', 'Debt_Amount', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False).head(5)
     st.table(top_5.style.format({'Debt_Amount': '${:,.2f}', 'NPV_Value': '${:,.2f}'}))
 
