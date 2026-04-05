@@ -66,7 +66,7 @@ def process_data(data, is_synthetic=False):
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
     
-    # We round these just to be safe, though the hover template does the heavy lifting
+    # Pre-round data to ensure clean numeric foundations
     data['Debt_Amount'] = data['Debt_Amount'].round(2)
     data['NPV_Value'] = data['NPV_Value'].round(2)
     return data
@@ -81,17 +81,14 @@ st.subheader("🔍 Portfolio Recovery Map")
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r",
-    custom_data=["Debt_Amount", "Days_Delinquent"], # Storing raw values for the hover box
+    custom_data=["Debt_Amount", "Days_Delinquent"], # Raw values for custom hover
     labels={"x": "Recency Score (Newest on Right)", "NPV_Value": "Expected NPV ($)"},
     height=550
 )
 
-# THE CRITICAL FIX: 
-# 1. We use a selector to only apply this to 'markers' (the bubbles), ignoring the trendline.
-# 2. We use %{customdata[0]:,.2f} which forces Comma + 2 Decimals.
-# 3. We remove the trace labels using <extra></extra>
+# Robust Fix: Manually targeting the marker trace to force currency formatting
 fig_map.update_traces(
-    selector=dict(mode='markers'),
+    selector=dict(mode='markers'), # Only applies to bubbles, ignoring the trendline
     hovertemplate=(
         "<b>Account: %{hovertext}</b><br><br>" +
         "Expected NPV: $%{y:,.2f}<br>" +
@@ -100,8 +97,8 @@ fig_map.update_traces(
     )
 )
 
-# Secondary Fix: Force the Y-Axis itself to never use 'k' (SI units)
-fig_map.update_layout(yaxis_tickformat='$,.2f')
+# Secondary Fix: Force the Y-Axis tick format to follow suit
+fig_map.update_layout(yaxis_tickformat='$,.2f', hovermode="closest")
 
 st.plotly_chart(fig_map, use_container_width=True)
 
@@ -147,21 +144,30 @@ with col_bc:
     fig_bc.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_bc, use_container_width=True)
 
-# --- 4. FOOTER: Goal Tracker ---
+# --- 4. FOOTER: Goal Tracker & Priority Table ---
 st.divider()
-st.subheader("🎯 Recovery Goal Progress")
-fig_gauge = go.Figure(go.Indicator(
-    mode = "gauge+number+delta",
-    value = total_npv,
-    delta = {'reference': recovery_target, 'position': "top"},
-    gauge = {
-        'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.2f"},
-        'bar': {'color': "#00CC96"},
-        'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
-    }
-))
-fig_gauge.update_layout(height=300, margin=dict(t=30, b=0, l=30, r=30))
-st.plotly_chart(fig_gauge, use_container_width=True)
+col_goal, col_top = st.columns(2)
+
+with col_goal:
+    st.subheader("🎯 Recovery Goal Progress")
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = total_npv,
+        delta = {'reference': recovery_target, 'position': "top"},
+        gauge = {
+            'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.2f"},
+            'bar': {'color': "#00CC96"},
+            'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
+        }
+    ))
+    fig_gauge.update_layout(height=300, margin=dict(t=30, b=0, l=30, r=30))
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+with col_top:
+    st.subheader("🏆 Priority Action Items")
+    st.write("Top 5 collectible accounts to prioritize for your goal:")
+    top_5 = df[['Account_ID', 'Debt_Amount', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False).head(5)
+    st.table(top_5.style.format({'Debt_Amount': '${:,.2f}', 'NPV_Value': '${:,.2f}'}))
 
 # Sidebar Template Download
 st.sidebar.divider()
