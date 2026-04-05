@@ -66,10 +66,9 @@ def process_data(data, is_synthetic=False):
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
     
-    # CRITICAL FIX 1: Round the data in the dataframe itself to prevent long floats
+    # We round these just to be safe, though the hover template does the heavy lifting
     data['Debt_Amount'] = data['Debt_Amount'].round(2)
     data['NPV_Value'] = data['NPV_Value'].round(2)
-    
     return data
 
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
@@ -80,32 +79,29 @@ st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
 
 fig_map = px.scatter(
-    df, 
-    x=720-df['Days_Delinquent'], 
-    y="NPV_Value", 
-    size="Debt_Amount", 
-    color="Days_Delinquent",
-    hover_name="Account_ID", 
-    trendline="ols", 
-    template="plotly_white", 
-    color_continuous_scale="RdBu_r",
-    # Pass clean numeric values into custom_data
-    custom_data=["NPV_Value", "Debt_Amount", "Days_Delinquent"],
-    labels={"x": "Recency Score", "NPV_Value": "Expected NPV ($)"},
+    df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
+    hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r",
+    custom_data=["Debt_Amount", "Days_Delinquent"], # Storing raw values for the hover box
+    labels={"x": "Recency Score (Newest on Right)", "NPV_Value": "Expected NPV ($)"},
     height=550
 )
 
-# CRITICAL FIX 2: Explicitly format the hover box and remove the automatic labels
+# THE CRITICAL FIX: 
+# 1. We use a selector to only apply this to 'markers' (the bubbles), ignoring the trendline.
+# 2. We use %{customdata[0]:,.2f} which forces Comma + 2 Decimals.
+# 3. We remove the trace labels using <extra></extra>
 fig_map.update_traces(
+    selector=dict(mode='markers'),
     hovertemplate=(
-        "<b>%{hovertext}</b><br><br>"
-        "Recency Score: %{x}<br>"
-        "Expected NPV: $%{customdata[0]:,.2f}<br>"
-        "Debt Amount: $%{customdata[1]:,.2f}<br>"
-        "Days Delinquent: %{customdata[2]}<extra></extra>"
-    ),
-    selector=dict(mode='markers') # Only applies to bubbles, not the trendline
+        "<b>Account: %{hovertext}</b><br><br>" +
+        "Expected NPV: $%{y:,.2f}<br>" +
+        "Debt Amount: $%{customdata[0]:,.2f}<br>" +
+        "Days Delinquent: %{customdata[1]}<extra></extra>"
+    )
 )
+
+# Secondary Fix: Force the Y-Axis itself to never use 'k' (SI units)
+fig_map.update_layout(yaxis_tickformat='$,.2f')
 
 st.plotly_chart(fig_map, use_container_width=True)
 
@@ -140,6 +136,7 @@ with col_cf:
     
     fig_cf = px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', color_discrete_sequence=['#00CC96'])
     fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: $%{y:,.2f}<extra></extra>")
+    fig_cf.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_cf, use_container_width=True)
 
 with col_bc:
@@ -147,6 +144,7 @@ with col_bc:
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
     fig_bc = px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white')
     fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: $%{y:,.2f}<extra></extra>")
+    fig_bc.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_bc, use_container_width=True)
 
 # --- 4. FOOTER: Goal Tracker ---
