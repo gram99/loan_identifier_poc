@@ -66,7 +66,7 @@ def process_data(data, is_synthetic=False):
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
     
-    # FORCED ROUNDING: Brute-force ensure numbers aren't long floats in the background
+    # FIX 1: ROUND THE DATA IN THE DATAFRAME
     data['Debt_Amount'] = data['Debt_Amount'].round(2)
     data['NPV_Value'] = data['NPV_Value'].round(2)
     return data
@@ -78,37 +78,32 @@ total_npv = df['NPV_Value'].sum()
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
 
+# We create the chart and disable default hover_data to clear the "=" signs
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r",
-    # 1. HIDE ALL DEFAULT HOVER LABELS to remove the "=" signs
-    hover_data={
-        "NPV_Value": False, 
-        "Debt_Amount": False, 
-        "Days_Delinquent": False, 
-        "Account_ID": False
-    },
-    # 2. PASS RAW NUMBERS via custom_data
-    custom_data=["Debt_Amount", "Days_Delinquent"],
-    labels={"x": "Recency Score (Newest on Right)", "NPV_Value": "Expected NPV ($)"},
+    custom_data=["NPV_Value", "Debt_Amount", "Days_Delinquent"],
+    hover_data={col: False for col in df.columns}, # This removes all default "Label=Value" entries
     height=550
 )
 
-# 3. FORCE STRICT FORMATTING using a trace-level override
-# We use %{y:$,.2f} and %{customdata[0]:$,.2f} to force Comma + 2 Decimals.
-fig_map.update_traces(
-    selector=dict(mode='markers'), # Targets bubbles only, ignores trendline
-    hovertemplate=(
-        "<b>Account: %{hovertext}</b><br><br>" +
-        "Recency Score: %{x}<br>" +
-        "Expected NPV: %{y:$,.2f}<br>" +
-        "Debt Amount: %{customdata[0]:$,.2f}<br>" +
-        "Days Delinquent: %{customdata[1]}<extra></extra>"
-    )
+# FIX 2: OVERWRITE THE TOOLTIP FOR THE BUBBLE LAYER DIRECTLY
+# fig_map.data[0] is strictly the bubbles. This bypasses the trendline logic.
+fig_map.data[0].hovertemplate = (
+    "<b>Account: %{hovertext}</b><br><br>" +
+    "Recency Score: %{x}<br>" +
+    "Expected NPV: $%{customdata[0]:,.2f}<br>" +
+    "Debt Amount: $%{customdata[1]:,.2f}<br>" +
+    "Days Delinquent: %{customdata[2]}<extra></extra>"
 )
 
-# 4. SYNC AXIS FORMATS to prevent "k" abbreviations
-fig_map.update_layout(yaxis_tickformat='$,.2f', hovermode="closest")
+# FIX 3: FORCE AXIS FORMATTING TO REMOVE THE "k" (10k) SHORTCUTS
+fig_map.update_layout(
+    yaxis_tickformat='$,.2f',
+    xaxis_title="Recency Score (Newest on Right)",
+    yaxis_title="Expected NPV ($)"
+)
+
 st.plotly_chart(fig_map, use_container_width=True)
 
 # --- 2. Account Ledger ---
@@ -141,7 +136,7 @@ with col_cf:
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
     
     fig_cf = px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', color_discrete_sequence=['#00CC96'])
-    fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: %{y:$,.2f}<extra></extra>")
+    fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: $%{y:,.2f}<extra></extra>")
     fig_cf.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_cf, use_container_width=True)
 
@@ -149,7 +144,7 @@ with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
     fig_bc = px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white')
-    fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: %{y:$,.2f}<extra></extra>")
+    fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: $%{y:,.2f}<extra></extra>")
     fig_bc.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_bc, use_container_width=True)
 
