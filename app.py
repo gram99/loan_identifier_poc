@@ -65,6 +65,11 @@ def process_data(data, is_synthetic=False):
     bins = [0, 30, 60, 90, 180, 360, 720, float('inf')]
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
+    
+    # CRITICAL FIX 1: Round the data in the dataframe itself to prevent long floats
+    data['Debt_Amount'] = data['Debt_Amount'].round(2)
+    data['NPV_Value'] = data['NPV_Value'].round(2)
+    
     return data
 
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
@@ -74,7 +79,6 @@ total_npv = df['NPV_Value'].sum()
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
 
-# We create the chart with custom_data containing the raw numeric values
 fig_map = px.scatter(
     df, 
     x=720-df['Days_Delinquent'], 
@@ -84,14 +88,14 @@ fig_map = px.scatter(
     hover_name="Account_ID", 
     trendline="ols", 
     template="plotly_white", 
-    color_continuous_scale="RdBu_r", 
+    color_continuous_scale="RdBu_r",
+    # Pass clean numeric values into custom_data
     custom_data=["NPV_Value", "Debt_Amount", "Days_Delinquent"],
-    labels={"x": "Recency Score (Newest on Right)", "NPV_Value": "Expected NPV ($)"},
+    labels={"x": "Recency Score", "NPV_Value": "Expected NPV ($)"},
     height=550
 )
 
-# THE CRITICAL FIX: Explicitly format each line of the hover box
-# %{customdata[i]:,.2f} forces exactly 2 decimals and a comma, even if Plotly wants to use "k"
+# CRITICAL FIX 2: Explicitly format the hover box and remove the automatic labels
 fig_map.update_traces(
     hovertemplate=(
         "<b>%{hovertext}</b><br><br>"
@@ -100,7 +104,7 @@ fig_map.update_traces(
         "Debt Amount: $%{customdata[1]:,.2f}<br>"
         "Days Delinquent: %{customdata[2]}<extra></extra>"
     ),
-    selector=dict(mode='markers')
+    selector=dict(mode='markers') # Only applies to bubbles, not the trendline
 )
 
 st.plotly_chart(fig_map, use_container_width=True)
