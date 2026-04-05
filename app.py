@@ -66,9 +66,14 @@ def process_data(data, is_synthetic=False):
     labels = ['0-30', '31-60', '61-90', '91-180', '181-360', '361-720', '720+']
     data['Bucket'] = pd.cut(data['Days_Delinquent'], bins=bins, labels=labels)
     
-    # FIX 1: ROUND THE DATA IN THE DATAFRAME
     data['Debt_Amount'] = data['Debt_Amount'].round(2)
     data['NPV_Value'] = data['NPV_Value'].round(2)
+
+    # FIX: Ensure 'Status' column exists to avoid KeyError
+    status_options = ['New', 'Contacted', 'In Negotiation', 'Promise to Pay']
+    if 'Status' not in data.columns:
+        data['Status'] = np.random.choice(status_options, size=len(data))
+        
     return data
 
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
@@ -78,17 +83,14 @@ total_npv = df['NPV_Value'].sum()
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
 
-# We create the chart and disable default hover_data to clear the "=" signs
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r",
     custom_data=["NPV_Value", "Debt_Amount", "Days_Delinquent"],
-    hover_data={col: False for col in df.columns}, # This removes all default "Label=Value" entries
+    hover_data={col: False for col in df.columns}, 
     height=550
 )
 
-# FIX 2: OVERWRITE THE TOOLTIP FOR THE BUBBLE LAYER DIRECTLY
-# fig_map.data[0] is strictly the bubbles. This bypasses the trendline logic.
 fig_map.data[0].hovertemplate = (
     "<b>Account: %{hovertext}</b><br><br>" +
     "Recency Score: %{x}<br>" +
@@ -97,7 +99,6 @@ fig_map.data[0].hovertemplate = (
     "Days Delinquent: %{customdata[2]}<extra></extra>"
 )
 
-# FIX 3: FORCE AXIS FORMATTING TO REMOVE THE "k" (10k) SHORTCUTS
 fig_map.update_layout(
     yaxis_tickformat='$,.2f',
     xaxis_title="Recency Score (Newest on Right)",
@@ -115,12 +116,13 @@ with col_dl:
     st.download_button("📥 Export to CSV", df.to_csv(index=False).encode('utf-8'), "recovery_analysis.csv", "text/csv")
 
 st.dataframe(
-    df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value']].sort_values(by='NPV_Value', ascending=False),
+    df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value', 'Status']].sort_values(by='NPV_Value', ascending=False),
     column_config={
         "Debt_Amount": st.column_config.NumberColumn("Debt Amount", format="$%,.2f"),
         "NPV_Value": st.column_config.NumberColumn("Expected NPV", format="$%,.2f"),
         "Recovery_Prob": st.column_config.ProgressColumn("Recovery Prob", format="%.0f%%", min_value=0, max_value=1),
-        "Days_Delinquent": st.column_config.NumberColumn("Days Delinquent", format="%d")
+        "Days_Delinquent": st.column_config.NumberColumn("Days Delinquent", format="%d"),
+        "Status": st.column_config.SelectboxColumn("Status", options=['New', 'Contacted', 'In Negotiation', 'Promise to Pay'])
     },
     use_container_width=True, hide_index=True
 )
@@ -152,7 +154,7 @@ with col_bc:
 # --- 4. FOOTER: Goal Tracker & Top Recoveries ---
 st.divider()
 
-# Use a 1:1.5 ratio to give the table more horizontal breathing room
+# 1:1.5 ratio to give the table more horizontal breathing room
 footer_col1, footer_col2 = st.columns([1, 1.5]) 
 
 with footer_col1:
@@ -167,15 +169,13 @@ with footer_col1:
             'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
         }
     ))
-    # We strictly limit the height here so it doesn't crowd the table
-    fig_gauge.update_layout(height=250, margin=dict(t=20, b=0, l=20, r=20))
+    fig_gauge.update_layout(height=280, margin=dict(t=40, b=0, l=20, r=20))
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 with footer_col2:
     st.markdown("#### 🏆 Top 10 Expected Recoveries")
     top_10_df = df[['Account_ID', 'Days_Delinquent', 'NPV_Value', 'Status']].sort_values(by='NPV_Value', ascending=False).head(10)
     
-    # We use st.dataframe here to ensure the SelectboxColumn renders correctly
     st.dataframe(
         top_10_df,
         column_config={
