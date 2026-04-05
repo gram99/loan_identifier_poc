@@ -148,21 +148,41 @@ with col_bc:
     fig_bc.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_bc, use_container_width=True)
 
-# --- 4. FOOTER: Goal Tracker ---
+# --- 4. FOOTER: Goal Tracker & Top Recoveries ---
 st.divider()
-st.subheader("🎯 Recovery Goal Progress")
-fig_gauge = go.Figure(go.Indicator(
-    mode = "gauge+number+delta",
-    value = total_npv,
-    delta = {'reference': recovery_target, 'position': "top"},
-    gauge = {
-        'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.2f"},
-        'bar': {'color': "#00CC96"},
-        'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
-    }
-))
-fig_gauge.update_layout(height=300, margin=dict(t=30, b=0, l=30, r=30))
-st.plotly_chart(fig_gauge, use_container_width=True)
+footer_col1, footer_col2 = st.columns([1, 1.2]) # Slightly wider second column for Status
+
+with footer_col1:
+    st.subheader("🎯 Recovery Goal Progress")
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = total_npv,
+        delta = {'reference': recovery_target, 'position': "top"},
+        gauge = {
+            'axis': {'range': [None, max(recovery_target * 1.2, total_npv * 1.2)], 'tickformat': "$,.2f"},
+            'bar': {'color': "#00CC96"},
+            'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
+        }
+    ))
+    fig_gauge.update_layout(height=350, margin=dict(t=50, b=0, l=30, r=30))
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+with footer_col2:
+    st.subheader("🏆 Top 10 Expected Recoveries")
+    # Include 'Status' in the selection
+    top_10_df = df[['Account_ID', 'Days_Delinquent', 'NPV_Value', 'Status']].sort_values(by='NPV_Value', ascending=False).head(10)
+    
+    st.dataframe(
+        top_10_df,
+        column_config={
+            "Account_ID": "Account",
+            "Days_Delinquent": st.column_config.NumberColumn("Days", format="%d"),
+            "NPV_Value": st.column_config.NumberColumn("Expected Recovery", format="$%,.2f"),
+            "Status": st.column_config.SelectboxColumn("Status", options=['New', 'Contacted', 'In Negotiation', 'Promise to Pay'])
+        },
+        hide_index=True,
+        use_container_width=True
+    )
 
 # Sidebar Template Download
 st.sidebar.divider()
