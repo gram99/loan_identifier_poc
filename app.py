@@ -42,6 +42,9 @@ st.sidebar.divider()
 st.sidebar.header("🎯 Recovery Goals")
 recovery_target = st.sidebar.number_input("Set Recovery Target ($)", value=100000, step=5000)
 
+# --- CAPTION TRICK & PROGRESS BAR ---
+st.sidebar.caption(f"Target: **${recovery_target:,.0f}**")
+
 st.sidebar.divider()
 ann_rate = st.sidebar.slider("Discount Rate (%)", 1.0, 20.0, 8.0) / 100
 scenario = st.sidebar.radio("Strategy:", ["Standard", "Aggressive", "Conservative"])
@@ -69,7 +72,6 @@ def process_data(data, is_synthetic=False):
     data['Debt_Amount'] = data['Debt_Amount'].round(2)
     data['NPV_Value'] = data['NPV_Value'].round(2)
 
-    # FIX: Ensure 'Status' column exists to avoid KeyError
     status_options = ['New', 'Contacted', 'In Negotiation', 'Promise to Pay']
     if 'Status' not in data.columns:
         data['Status'] = np.random.choice(status_options, size=len(data))
@@ -78,6 +80,11 @@ def process_data(data, is_synthetic=False):
 
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
 total_npv = df['NPV_Value'].sum()
+
+# --- Update Sidebar with Progress ---
+progress_perc = min(total_npv / recovery_target, 1.0)
+st.sidebar.write(f"Goal Completion: {progress_perc*100:.1f}%")
+st.sidebar.progress(progress_perc)
 
 # --- 1. CENTERPIECE: Recovery Map (Bubble Graph) ---
 st.divider()
@@ -91,6 +98,7 @@ fig_map = px.scatter(
     height=550
 )
 
+# Overwrite tooltip for the bubbles
 fig_map.data[0].hovertemplate = (
     "<b>Account: %{hovertext}</b><br><br>" +
     "Recency Score: %{x}<br>" +
@@ -153,8 +161,6 @@ with col_bc:
 
 # --- 4. FOOTER: Goal Tracker & Top Recoveries ---
 st.divider()
-
-# 1:1.5 ratio to give the table more horizontal breathing room
 footer_col1, footer_col2 = st.columns([1, 1.5]) 
 
 with footer_col1:
