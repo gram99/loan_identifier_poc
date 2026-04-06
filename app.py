@@ -41,14 +41,23 @@ else:
 st.sidebar.divider()
 st.sidebar.header("🎯 Recovery Goals")
 recovery_target = st.sidebar.number_input("Set Recovery Target ($)", value=100000, step=5000)
-
-# --- CAPTION TRICK & PROGRESS BAR ---
 st.sidebar.caption(f"Target: **${recovery_target:,.0f}**")
 
 st.sidebar.divider()
 ann_rate = st.sidebar.slider("Discount Rate (%)", 1.0, 20.0, 8.0) / 100
 scenario = st.sidebar.radio("Strategy:", ["Standard", "Aggressive", "Conservative"])
 multiplier = {"Conservative": 0.6, "Standard": 1.0, "Aggressive": 1.4}[scenario]
+
+# --- NEW: Theme Toggle in Sidebar ---
+st.sidebar.divider()
+st.sidebar.header("🎨 Display Preferences")
+theme_choice = st.sidebar.radio(
+    "Background Mode:", 
+    ["White Background", "Black Background"],
+    index=0
+)
+is_dark = (theme_choice == "Black Background")
+plot_template = "plotly_dark" if is_dark else "plotly_white"
 
 # --- Data Engine ---
 def process_data(data, is_synthetic=False):
@@ -81,24 +90,23 @@ def process_data(data, is_synthetic=False):
 df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
 total_npv = df['NPV_Value'].sum()
 
-# --- Update Sidebar with Progress ---
+# --- Sidebar Progress ---
 progress_perc = min(total_npv / recovery_target, 1.0)
 st.sidebar.write(f"Goal Completion: {progress_perc*100:.1f}%")
 st.sidebar.progress(progress_perc)
 
-# --- 1. CENTERPIECE: Recovery Map (Bubble Graph) ---
+# --- 1. CENTERPIECE: Recovery Map ---
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
 
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
-    hover_name="Account_ID", trendline="ols", template="plotly_white", color_continuous_scale="RdBu_r",
+    hover_name="Account_ID", trendline="ols", template=plot_template, color_continuous_scale="RdBu_r",
     custom_data=["NPV_Value", "Debt_Amount", "Days_Delinquent"],
     hover_data={col: False for col in df.columns}, 
     height=550
 )
 
-# Overwrite tooltip for the bubbles
 fig_map.data[0].hovertemplate = (
     "<b>Account: %{hovertext}</b><br><br>" +
     "Recency Score: %{x}<br>" +
@@ -107,35 +115,24 @@ fig_map.data[0].hovertemplate = (
     "Days Delinquent: %{customdata[2]}<extra></extra>"
 )
 
-fig_map.update_layout(
-    yaxis_tickformat='$,.2f',
-    xaxis_title="Recency Score (Newest on Right)",
-    yaxis_title="Expected NPV ($)"
-)
-
+fig_map.update_layout(yaxis_tickformat='$,.2f', xaxis_title="Recency Score", yaxis_title="Expected NPV ($)")
 st.plotly_chart(fig_map, use_container_width=True)
 
 # --- 2. Account Ledger ---
 st.divider()
-col_head, col_dl = st.columns(2)
-with col_head:
-    st.subheader("📋 Detailed Account Ledger")
-with col_dl:
-    st.download_button("📥 Export to CSV", df.to_csv(index=False).encode('utf-8'), "recovery_analysis.csv", "text/csv")
-
+st.subheader("📋 Detailed Account Ledger")
 st.dataframe(
     df[['Account_ID', 'Debt_Amount', 'Days_Delinquent', 'Recovery_Prob', 'NPV_Value', 'Status']].sort_values(by='NPV_Value', ascending=False),
     column_config={
         "Debt_Amount": st.column_config.NumberColumn("Debt Amount", format="$%,.2f"),
         "NPV_Value": st.column_config.NumberColumn("Expected NPV", format="$%,.2f"),
         "Recovery_Prob": st.column_config.ProgressColumn("Recovery Prob", format="%.0f%%", min_value=0, max_value=1),
-        "Days_Delinquent": st.column_config.NumberColumn("Days Delinquent", format="%d"),
         "Status": st.column_config.SelectboxColumn("Status", options=['New', 'Contacted', 'In Negotiation', 'Promise to Pay'])
     },
     use_container_width=True, hide_index=True
 )
 
-# --- 3. Analytics: Cash Flow & Buckets ---
+# --- 3. Analytics ---
 st.divider()
 col_cf, col_bc = st.columns(2)
 
@@ -144,20 +141,16 @@ with col_cf:
     cash_flow = df.groupby('Est_Recovery_Month')['NPV_Value'].sum().reset_index()
     base_date = datetime.now()
     cash_flow['Month'] = cash_flow['Est_Recovery_Month'].apply(lambda x: (base_date + timedelta(days=x*30)).strftime('%b %Y'))
-    
-    fig_cf = px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template='plotly_white', color_discrete_sequence=['#00CC96'])
-    fig_cf.update_traces(hovertemplate="Month: %{x}<br>Projected NPV: $%{y:,.2f}<extra></extra>")
+    fig_cf = px.line(cash_flow, x='Month', y='NPV_Value', markers=True, template=plot_template, color_discrete_sequence=['#00CC96'])
     fig_cf.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_cf, use_container_width=True)
 
 with col_bc:
     st.subheader("📁 Bucket Concentration")
     bucket_sum = df.groupby('Bucket', observed=True)['Debt_Amount'].sum().reset_index()
-    fig_bc = px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template='plotly_white')
-    fig_bc.update_traces(hovertemplate="Bucket: %{x}<br>Total Debt: $%{y:,.2f}<extra></extra>")
+    fig_bc = px.bar(bucket_sum, x='Bucket', y='Debt_Amount', color='Debt_Amount', color_continuous_scale='Reds', template=plot_template)
     fig_bc.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_bc, use_container_width=True)
-
 
 # --- 4. FOOTER: Goal Tracker & Top Recoveries ---
 st.divider()
@@ -175,27 +168,19 @@ with footer_col1:
             'threshold': {'line': {'color': "red", 'width': 3}, 'value': recovery_target}
         }
     ))
-    fig_gauge.update_layout(height=280, margin=dict(t=40, b=0, l=20, r=20))
+    fig_gauge.update_layout(height=280, margin=dict(t=40, b=0, l=20, r=20), template=plot_template)
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 with footer_col2:
     st.markdown("#### 🏆 Top 10 Expected Recoveries")
     top_10_df = df[['Account_ID', 'Days_Delinquent', 'NPV_Value', 'Status']].sort_values(by='NPV_Value', ascending=False).head(10)
-    
     st.dataframe(
         top_10_df,
         column_config={
-            "Account_ID": "Account",
-            "Days_Delinquent": st.column_config.NumberColumn("Days", format="%d"),
             "NPV_Value": st.column_config.NumberColumn("Expected Recovery", format="$%,.2f"),
-            "Status": st.column_config.SelectboxColumn(
-                "Status", 
-                options=['New', 'Contacted', 'In Negotiation', 'Promise to Pay'],
-                width="medium"
-            )
+            "Status": st.column_config.SelectboxColumn("Status", options=['New', 'Contacted', 'In Negotiation', 'Promise to Pay'])
         },
-        hide_index=True,
-        use_container_width=True
+        hide_index=True, use_container_width=True
     )
 
 # Sidebar Template Download
