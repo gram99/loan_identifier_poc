@@ -21,46 +21,8 @@ def create_template_with_samples():
         samples.to_excel(writer, index=False, sheet_name='Template')
     return buffer.getvalue()
 
-st.title("📊 Loan Collectability & Recovery Analytics")
-
-# --- Sidebar ---
-st.sidebar.header("📂 Data Source")
-data_source = st.sidebar.radio("Select Source:", ["Synthetic Demo", "Upload Data"])
-
-if data_source == "Upload Data":
-    uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=["csv", "xlsx"])
-    if uploaded_file:
-        df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-    else:
-        st.info("Upload a file in the sidebar to begin.")
-        st.stop()
-else:
-    num_accounts = st.sidebar.slider("Number of Accounts", 50, 1000, 300)
-    df_input = None
-
-st.sidebar.divider()
-st.sidebar.header("🎯 Recovery Goals")
-recovery_target = st.sidebar.number_input("Set Recovery Target ($)", value=100000, step=5000)
-st.sidebar.caption(f"Target: **${recovery_target:,.0f}**")
-
-st.sidebar.divider()
-ann_rate = st.sidebar.slider("Discount Rate (%)", 1.0, 20.0, 8.0) / 100
-scenario = st.sidebar.radio("Strategy:", ["Standard", "Aggressive", "Conservative"])
-multiplier = {"Conservative": 0.6, "Standard": 1.0, "Aggressive": 1.4}[scenario]
-
-# --- NEW: Theme Toggle in Sidebar ---
-st.sidebar.divider()
-st.sidebar.header("🎨 Display Preferences")
-theme_choice = st.sidebar.radio(
-    "Background Mode:", 
-    ["White Background", "Black Background"],
-    index=0
-)
-is_dark = (theme_choice == "Black Background")
-plot_template = "plotly_dark" if is_dark else "plotly_white"
-
 # --- Data Engine ---
-def process_data(data, is_synthetic=False):
+def process_data(data, ann_rate, multiplier, num_accounts, is_synthetic=False):
     if is_synthetic:
         np.random.seed(42)
         data = pd.DataFrame({
@@ -87,38 +49,78 @@ def process_data(data, is_synthetic=False):
         
     return data
 
-df = process_data(df_input, is_synthetic=(data_source == "Synthetic Demo"))
+st.title("📊 Loan Collectability & Recovery Analytics")
+
+# --- SIDEBAR SECTIONS ---
+st.sidebar.header("📂 Data Source")
+data_source = st.sidebar.radio("Select Source:", ["Synthetic Demo", "Upload Data"])
+
+num_accounts = 300
+df_input = None
+if data_source == "Upload Data":
+    uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=["csv", "xlsx"])
+    if uploaded_file:
+        df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+    else:
+        st.info("Upload a file in the sidebar to begin.")
+        st.stop()
+else:
+    num_accounts = st.sidebar.slider("Number of Accounts", 50, 1000, 300)
+
+# Section: Recovery Goals
+st.sidebar.divider()
+st.sidebar.header("🎯 Recovery Goals")
+recovery_target = st.sidebar.number_input("Set Recovery Target ($)", value=100000, step=5000)
+st.sidebar.caption(f"Target: **${recovery_target:,.0f}**")
+
+# Section: Strategy
+st.sidebar.divider()
+st.sidebar.header("⚙️ Strategy")
+ann_rate = st.sidebar.slider("Discount Rate (%)", 1.0, 20.0, 8.0) / 100
+scenario = st.sidebar.radio("Scenario:", ["Standard", "Aggressive", "Conservative"])
+multiplier = {"Conservative": 0.6, "Standard": 1.0, "Aggressive": 1.4}[scenario]
+
+# --- PROCESS DATA ---
+df = process_data(df_input, ann_rate, multiplier, num_accounts, is_synthetic=(data_source == "Synthetic Demo"))
 total_npv = df['NPV_Value'].sum()
 
-# --- Sidebar Progress ---
+# Section: Goal Completion
+st.sidebar.divider()
+st.sidebar.header("📊 Goal Completion")
 progress_perc = min(total_npv / recovery_target, 1.0)
-st.sidebar.write(f"Goal Completion: {progress_perc*100:.1f}%")
+st.sidebar.write(f"Achievement: {progress_perc*100:.1f}%")
 st.sidebar.progress(progress_perc)
 
-# --- 1. CENTERPIECE: Recovery Map ---
+# Section: Display Preferences
+st.sidebar.divider()
+st.sidebar.header("Display Preferences") # Icon removed as requested
+theme_choice = st.sidebar.radio(
+    "Background Mode:", 
+    ["White Background", "Black Background"],
+    index=0
+)
+is_dark = (theme_choice == "Black Background")
+plot_template = "plotly_dark" if is_dark else "plotly_white"
+
+# Section: Download
+st.sidebar.divider()
+st.sidebar.download_button("📥 Download Excel Template", create_template_with_samples(), "loan_template.xlsx")
+
+# --- MAIN DASHBOARD CONTENT ---
+
+# 1. Recovery Map
 st.divider()
 st.subheader("🔍 Portfolio Recovery Map")
-
 fig_map = px.scatter(
     df, x=720-df['Days_Delinquent'], y="NPV_Value", size="Debt_Amount", color="Days_Delinquent",
     hover_name="Account_ID", trendline="ols", template=plot_template, color_continuous_scale="RdBu_r",
     custom_data=["NPV_Value", "Debt_Amount", "Days_Delinquent"],
-    hover_data={col: False for col in df.columns}, 
     height=550
 )
-
-fig_map.data[0].hovertemplate = (
-    "<b>Account: %{hovertext}</b><br><br>" +
-    "Recency Score: %{x}<br>" +
-    "Expected NPV: $%{customdata[0]:,.2f}<br>" +
-    "Debt Amount: $%{customdata[1]:,.2f}<br>" +
-    "Days Delinquent: %{customdata[2]}<extra></extra>"
-)
-
 fig_map.update_layout(yaxis_tickformat='$,.2f', xaxis_title="Recency Score", yaxis_title="Expected NPV ($)")
 st.plotly_chart(fig_map, use_container_width=True)
 
-# --- 2. Account Ledger ---
+# 2. Account Ledger
 st.divider()
 st.subheader("📋 Detailed Account Ledger")
 st.dataframe(
@@ -132,10 +134,9 @@ st.dataframe(
     use_container_width=True, hide_index=True
 )
 
-# --- 3. Analytics ---
+# 3. Analytics
 st.divider()
 col_cf, col_bc = st.columns(2)
-
 with col_cf:
     st.subheader("🗓️ 12-Month Projected Cash Flow")
     cash_flow = df.groupby('Est_Recovery_Month')['NPV_Value'].sum().reset_index()
@@ -152,10 +153,9 @@ with col_bc:
     fig_bc.update_layout(yaxis_tickformat='$,.2f')
     st.plotly_chart(fig_bc, use_container_width=True)
 
-# --- 4. FOOTER: Goal Tracker & Top Recoveries ---
+# 4. FOOTER
 st.divider()
 footer_col1, footer_col2 = st.columns([1, 1.5]) 
-
 with footer_col1:
     st.markdown("#### 🎯 Recovery Goal Progress")
     fig_gauge = go.Figure(go.Indicator(
@@ -182,7 +182,3 @@ with footer_col2:
         },
         hide_index=True, use_container_width=True
     )
-
-# Sidebar Template Download
-st.sidebar.divider()
-st.sidebar.download_button("📥 Download Excel Template", create_template_with_samples(), "loan_template.xlsx")
