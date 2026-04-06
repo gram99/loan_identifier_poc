@@ -157,7 +157,7 @@ with col_bc:
 st.divider()
 footer_col1, footer_col2 = st.columns([1, 1.5]) 
 with footer_col1:
-    st.markdown("#### 🎯 Recovery Goal Progress")
+    st.markdown("#### Recovery Goal Progress")
     fig_gauge = go.Figure(go.Indicator(
         mode = "gauge+number+delta",
         value = total_npv,
@@ -172,7 +172,7 @@ with footer_col1:
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 with footer_col2:
-    st.markdown("#### 🏆 Top 10 Expected Recoveries")
+    st.markdown("#### Top 10 Expected Recoveries")
     top_10_df = df[['Account_ID', 'Days_Delinquent', 'NPV_Value', 'Status']].sort_values(by='NPV_Value', ascending=False).head(10)
     st.dataframe(
         top_10_df,
