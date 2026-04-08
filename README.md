@@ -50,7 +50,9 @@ pandas
 numpy
 plotly
 xlsxwriter
+```
 
+---
 
 ## Screen shots
 
