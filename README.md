@@ -1,5 +1,8 @@
 # 📈 Loan Collectability & Recovery Analytics Toolbox
 
+**Author:** Gram99  
+**Target Stakeholders:** Recovery Operations & Strategy (1st & 2nd Line of Defense)
+
 A Streamlit-based interactive analytics dashboard that can be used for modeling **loan collectability**, **expected recovery value**, and **portfolio‑level cash‑flow projections**. This app allows analysts to upload real data or generate synthetic demo portfolios, visualize recovery potential, view goals, expected recoveries, and export results for further analysis.
 
 ---
